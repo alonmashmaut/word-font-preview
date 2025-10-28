@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>תצוגה מקדימה לפונטים</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            padding: 15px;
+            background-color: #f5f5f5;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            font-size: 20px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .input-section {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: bold;
+        }
+        
+        #previewText {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            font-family: Arial, sans-serif;
+        }
+        
+        #previewText:focus {
+            outline: none;
+            border-color: #0078d4;
+        }
+        
+        #searchBox {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        
+        #searchBox:focus {
+            outline: none;
+            border-color: #0078d4;
+        }
+        
+        #fontList {
+            max-height: calc(100vh - 350px);
+            overflow-y: auto;
+            background: white;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .font-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+        }
+        
+        .font-item:hover {
+            border-color: #0078d4;
+            background-color: #f0f8ff;
+            transform: translateX(-3px);
+        }
+        
+        .font-item.selected {
+            border-color: #0078d4;
+            background-color: #e3f2fd;
+        }
+        
+        .font-name {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        
+        .font-preview {
+            font-size: 18px;
+            color: #333;
+            word-wrap: break-word;
+        }
+        
+        #applyButton {
+            width: 100%;
+            padding: 12px;
+            background-color: #0078d4;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: background-color 0.3s ease;
+        }
+        
+        #applyButton:hover {
+            background-color: #005a9e;
+        }
+        
+        #applyButton:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        #status {
+            text-align: center;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .status-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎨 תצוגה מקדימה לפונטים</h1>
+    
+    <div class="input-section">
+        <label for="previewText">הכנס טקסט לתצוגה מקדימה:</label>
+        <input type="text" id="previewText" value="הטקסט שלי בפונט זה" placeholder="כתוב משהו...">
+    </div>
+    
+    <input type="text" id="searchBox" placeholder="🔍 חפש פונט...">
+    
+    <div id="fontList"></div>
+    
+    <button id="applyButton" disabled>החל פונט נבחר</button>
+    <div id="status"></div>
+
+    <script>
+        let selectedFont = null;
+        let allFonts = [];
+        
+        Office.onReady((info) => {
+            if (info.host === Office.HostType.Word) {
+                document.getElementById('previewText').addEventListener('input', updatePreviews);
+                document.getElementById('searchBox').addEventListener('input', filterFonts);
+                document.getElementById('applyButton').addEventListener('click', applyFont);
+                
+                loadFonts();
+            }
+        });
+        
+        function loadFonts() {
+            showStatus('טוען פונטים...', 'info');
+            
+            // רשימת פונטים נפוצים
+            const commonFonts = [
+                'Arial', 'Arial Black', 'Comic Sans MS', 'Courier New', 'Georgia',
+                'Impact', 'Times New Roman', 'Trebuchet MS', 'Verdana',
+                'Helvetica', 'Palatino', 'Garamond', 'Bookman', 'Tahoma',
+                'David', 'Frank Ruehl', 'Guttman Yad', 'Levenim MT', 'Miriam',
+                'Narkisim', 'Rod', 'Calibri', 'Cambria', 'Candara', 'Consolas',
+                'Constantia', 'Corbel', 'Franklin Gothic Medium', 'Lucida Console',
+                'Lucida Sans Unicode', 'Microsoft Sans Serif', 'Segoe UI',
+                'Alef', 'Assistant', 'Rubik', 'Heebo', 'Open Sans', 'Roboto',
+                'Noto Sans Hebrew', 'Varela Round', 'Secular One'
+            ];
+            
+            // בדיקה אילו פונטים באמת זמינים
+            allFonts = commonFonts.filter(font => isFontAvailable(font));
+            
+            displayFonts(allFonts);
+            showStatus(`נמצאו ${allFonts.length} פונטים`, 'success');
+        }
+        
+        function isFontAvailable(fontName) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            
+            const text = 'abcdefghijklmnopqrstuvwxyz0123456789אבגדהוזחט';
+            context.font = '72px monospace';
+            const baselineSize = context.measureText(text).width;
+            
+            context.font = `72px "${fontName}", monospace`;
+            const newSize = context.measureText(text).width;
+            
+            return newSize !== baselineSize;
+        }
+        
+        function displayFonts(fonts) {
+            const fontList = document.getElementById('fontList');
+            const previewText = document.getElementById('previewText').value || 'הטקסט שלי בפונט זה';
+            
+            fontList.innerHTML = '';
+            
+            fonts.forEach(font => {
+                const fontItem = document.createElement('div');
+                fontItem.className = 'font-item';
+                fontItem.onclick = () => selectFont(font, fontItem);
+                
+                const fontName = document.createElement('div');
+                fontName.className = 'font-name';
+                fontName.textContent = font;
+                
+                const fontPreview = document.createElement('div');
+                fontPreview.className = 'font-preview';
+                fontPreview.style.fontFamily = `"${font}", Arial`;
+                fontPreview.textContent = previewText;
+                
+                fontItem.appendChild(fontName);
+                fontItem.appendChild(fontPreview);
+                fontList.appendChild(fontItem);
+            });
+        }
+        
+        function updatePreviews() {
+            const previewText = document.getElementById('previewText').value || 'הטקסט שלי בפונט זה';
+            const previews = document.querySelectorAll('.font-preview');
+            previews.forEach(preview => {
+                preview.textContent = previewText;
+            });
+        }
+        
+        function selectFont(font, element) {
+            selectedFont = font;
+            
+            // הסרת בחירה קודמת
+            document.querySelectorAll('.font-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // סימון הפונט הנבחר
+            element.classList.add('selected');
+            
+            // הפעלת הכפתור
+            document.getElementById('applyButton').disabled = false;
+            
+            showStatus(`נבחר: ${font}`, 'info');
+        }
+        
+        function filterFonts() {
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            const filteredFonts = allFonts.filter(font => 
+                font.toLowerCase().includes(searchTerm)
+            );
+            displayFonts(filteredFonts);
+        }
+        
+        function applyFont() {
+            if (!selectedFont) {
+                showStatus('אנא בחר פונט תחילה', 'error');
+                return;
+            }
+            
+            Word.run(async (context) => {
+                const range = context.document.getSelection();
+                range.font.name = selectedFont;
+                
+                await context.sync();
+                showStatus(`הפונט "${selectedFont}" הוחל בהצלחה!`, 'success');
+            }).catch(error => {
+                showStatus('שגיאה בהחלת הפונט: ' + error.message, 'error');
+            });
+        }
+        
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status-${type}`;
+            
+            if (type === 'success' || type === 'error') {
+                setTimeout(() => {
+                    status.textContent = '';
+                    status.className = '';
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>
